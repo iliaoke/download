@@ -1,0 +1,20 @@
+name: 下载
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: download
+      run: |
+          sudo apt-get update && sudo apt-get install -y tree p7zip-full aria2
+          aria2c https://d-e02.winudf.com/b/XAPK/Y29tLmFjdGl2aXNpb24uY2FsbG9mZHV0eS5zaG9vdGVyXzE1NTU5XzY5ZDkwMjc5?_fn=Q2FsbCBvZiBEdXR5OiBNb2JpbGUgU2Vhc29uIDZfMS4wLjQ1X0FQS1B1cmUueGFwaw&_p=Y29tLmFjdGl2aXNpb24uY2FsbG9mZHV0eS5zaG9vdGVy&download_id=1979209779331731&is_hot=true&k=13ab57edf86aa212edb1b4bab736b19c66811c69&uu=https%3A%2F%2Fd-03.winudf.com%2Fb%2FXAPK%2FY29tLmFjdGl2aXNpb24uY2FsbG9mZHV0eS5zaG9vdGVyXzE1NTU5XzY5ZDkwMjc5%3Fk%3Df90f53ac3b455e1b309d61fa3818f95866811c69
+    - name: Upload artifact
+      uses: actions/upload-artifact@main
+      with:
+        name: file
+        path: | 
+            *.apks
