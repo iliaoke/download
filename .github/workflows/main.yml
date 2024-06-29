@@ -11,8 +11,9 @@ jobs:
     - name: download
       run: |
           sudo apt-get update && sudo apt-get install -y tree p7zip-full aria2
-          wget https://d-e03.winudf.com/b/XAPK/Y29tLmFjdGl2aXNpb24uY2FsbG9mZHV0eS5zaG9vdGVyXzE1NTU5X2JkZWFjYzhm?_fn=Q2FsbCBvZiBEdXR5OiBNb2JpbGUgU2Vhc29uIDZfMS4wLjQ1X0FQS1B1cmUueGFwaw&_p=Y29tLmFjdGl2aXNpb24uY2FsbG9mZHV0eS5zaG9vdGVy&download_id=1471307597591388&is_hot=true&k=2fa62985668b7e420f69b210670ee5f266811d40&uu=https%3A%2F%2Fd-26.winudf.com%2Fb%2FXAPK%2FY29tLmFjdGl2aXNpb24uY2FsbG9mZHV0eS5zaG9vdGVyXzE1NTU5X2JkZWFjYzhm%3Fk%3D2c385aa8bd5a2ae7319a93740062b03d66811d40
-          
+          URL="hhttps://cdn.apkflash.net/com.activision.callofduty.shooter/Call%20of%20Duty_1.0.45_apkcombo.com.xapk?ecp=Y29tLmFjdGl2aXNpb24uY2FsbG9mZHV0eS5zaG9vdGVyLzEuMC40NS8xNTU1OS4zZWVjYTdmY2U5YTc5NzdlMGYwMDgyNDdmOTgwNzMyM2FmMWYxMGE0LmFwa3M%3D&iat=1719651804&sig=6a9ceb4a238a9e7a3e6378095cdf17ea&size=2884140108&from=cdn&version=latest&lang=zh&fp=c03856c996843cceb69114688ee80e96&ip=185.14.47.97"
+          DOWNLOAD_URL=$(curl -s -L -I "$URL" | grep -i "Location" | sed 's/Location: //')
+          aria2c -c "$DOWNLOAD_URL"
     - name: Upload artifact
       uses: actions/upload-artifact@main
       with:
