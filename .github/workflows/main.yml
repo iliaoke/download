@@ -11,7 +11,7 @@ jobs:
     - name: download
       run: |
           sudo apt-get update && sudo apt-get install -y tree p7zip-full aria2
-          URL="https://www.apkmirror.com/apk/activision-publishing-inc/call-of-duty-legends-of-war/call-of-duty-legends-of-war-1-0-45-release/call-of-duty-mobile-season-5-1-0-45-android-apk-download/download/?key=a3874426c8c848ca9e79e23ea6973a32838703c7"
+          URL="https://cdn.apkflash.net/com.activision.callofduty.shooter/Call%20of%20Duty_1.0.45_apkcombo.com.xapk?ecp=Y29tLmFjdGl2aXNpb24uY2FsbG9mZHV0eS5zaG9vdGVyLzEuMC40NS8xNTU1OS4zZWVjYTdmY2U5YTc5NzdlMGYwMDgyNDdmOTgwNzMyM2FmMWYxMGE0LmFwa3M%3D&iat=1719651804&sig=6a9ceb4a238a9e7a3e6378095cdf17ea&size=2884140108&from=cdn&version=latest&lang=zh&fp=c03856c996843cceb69114688ee80e96&ip=185.14.47.97"
           DOWNLOAD_URL=$(curl -s -L -I "$URL" | grep -i "Location" | sed 's/Location: //')
           aria2c -c "$DOWNLOAD_URL"
     - name: Upload artifact
