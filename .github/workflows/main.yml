@@ -12,6 +12,7 @@ jobs:
       run: |
           sudo apt-get update && sudo apt-get install -y tree p7zip-full aria2 tar bzip2
           aria2c https://d.apkpure.com/b/XAPK/com.activision.callofduty.warzone?versionCode=1359
+          tree
           tar -cvf - *.apks | bzip2 -9 > 1.tar.bz2
           
     - name: Upload artifact
