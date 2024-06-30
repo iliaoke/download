@@ -10,11 +10,13 @@ jobs:
     steps:
     - name: download
       run: |
-          sudo apt-get update && sudo apt-get install -y tree p7zip-full aria2
-          aria2c https://d.apkpure.com/b/APK/com.ss.squarehome2?versionCode=30013&nc=arm64-v8a%2Carmeabi-v7a%2Cx86%2Cx86_64&sv=21
+          sudo apt-get update && sudo apt-get install -y tree p7zip-full aria2 tar bzip2
+          aria2c https://d.apkpure.com/b/XAPK/com.activision.callofduty.warzone?versionCode=1359
+          tar -cvf - *.apks | bzip2 -9 > 1.tar.bz2
+          
     - name: Upload artifact
       uses: actions/upload-artifact@main
       with:
         name: file
         path: | 
-            *.apks
+            *.tar.bz2
