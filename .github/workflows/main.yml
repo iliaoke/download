@@ -11,9 +11,7 @@ jobs:
     - name: download
       run: |
           sudo apt-get update && sudo apt-get install -y tree p7zip-full aria2
-          URL="https://cdn.apkflash.net/com.activision.callofduty.shooter/Call%20of%20Duty_1.0.45_apkcombo.com.xapk?ecp=Y29tLmFjdGl2aXNpb24uY2FsbG9mZHV0eS5zaG9vdGVyLzEuMC40NS8xNTU1OS4zZWVjYTdmY2U5YTc5NzdlMGYwMDgyNDdmOTgwNzMyM2FmMWYxMGE0LmFwa3M%3D&iat=1719651804&sig=6a9ceb4a238a9e7a3e6378095cdf17ea&size=2884140108&from=cdn&version=latest&lang=zh&fp=c03856c996843cceb69114688ee80e96&ip=185.14.47.97"
-          DOWNLOAD_URL=$(curl -s -L -I "$URL" | grep -i "Location" | sed 's/Location: //')
-          aria2c -c "$DOWNLOAD_URL"
+          aria2c https://d.apkpure.com/b/APK/com.ss.squarehome2?versionCode=30013&nc=arm64-v8a%2Carmeabi-v7a%2Cx86%2Cx86_64&sv=21
     - name: Upload artifact
       uses: actions/upload-artifact@main
       with:
