@@ -14,9 +14,7 @@ jobs:
           aria2c http://tgfile.1258012.xyz/36297/%E6%A1%83%E8%89%B2%E6%81%8B%E6%81%8B+%EF%BD%9E%E4%B8%8E%E5%A7%90%E5%A6%B9%E7%9B%B8%E7%B3%BB%E7%9A%84H%E5%85%B3%E7%B3%BB.rar?hash=f48b01
           tree
           
-    - name: Upload artifact
-      uses: actions/upload-artifact@main
+    - name: Release
+      uses: softprops/action-gh-release@master
       with:
-        name: file
-        path: | 
-            *
+          files: ./*
