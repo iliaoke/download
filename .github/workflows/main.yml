@@ -20,5 +20,5 @@ jobs:
     - name: Release
       uses: softprops/action-gh-release@master
       with:
-          tag_name: $date
+          tag_name: ${{env.date}}
           files: ./*
