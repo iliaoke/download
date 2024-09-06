@@ -15,8 +15,10 @@ jobs:
       run: |
           export DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
           echo "DATE=$DATE" >> $GITHUB_ENV
+          export url=${{github.event.inputs.download}}
+          echo $url
           sudo apt-get update && sudo apt-get install -y tree p7zip-full aria2 tar bzip2
-          aria2c ${{github.event.inputs.download}}
+          aria2c $url
           tree
           
     - name: Release
