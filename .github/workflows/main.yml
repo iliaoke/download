@@ -18,7 +18,7 @@ jobs:
         
           sudo apt-get update && sudo apt-get install -y tree p7zip-full curl aria2 tar bzip2
           curl --max-time 2 -s https://ipinfo.io/ip || curl --max-time 2 -s https://ifconfig.io/ip
-          aria2c -s 8 -x 8 ${{github.event.inputs.download}}
+          aria2c -s8 -x8 ${{github.event.inputs.download}}
           tree
           
     - name: Release
