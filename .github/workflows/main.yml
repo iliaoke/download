@@ -16,8 +16,9 @@ jobs:
           export DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
           echo "DATE=$DATE" >> $GITHUB_ENV
         
-          sudo apt-get update && sudo apt-get install -y tree p7zip-full aria2 tar bzip2
-          aria2c ${{github.event.inputs.download}}
+          sudo apt-get update && sudo apt-get install -y tree p7zip-full curl aria2 tar bzip2
+          curl --max-time 2 -s https://ipinfo.io/ip || curl --max-time 2 -s https://ifconfig.io/ip
+          aria2c -s 8 -x 8 ${{github.event.inputs.download}}
           tree
           
     - name: Release
