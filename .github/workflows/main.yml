@@ -1,28 +1,60 @@
 name: 下载
 
 on:
-  push:
   workflow_dispatch:
-   inputs:
-    download:
-    
+    inputs:
+      download:
+        description: '下载链接（aria2c 支持的链接/磁力等）'
+        required: true
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
     - name: download
+      env:
+        DL_URL: ${{ github.event.inputs.download }}
       run: |
           export DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
           echo "DATE=$DATE" >> $GITHUB_ENV
-        
-          sudo apt-get update && sudo apt-get install -y tree p7zip-full curl aria2 tar bzip2
+
+          sudo apt-get update && sudo apt-get install -y tree zip unzip curl aria2 tar bzip2
           curl --max-time 2 -s https://ipinfo.io/ip || curl --max-time 2 -s https://ifconfig.io/ip
-          aria2c -s8 -x8 ${{github.event.inputs.download}}
-          tree
-          
-    - name: Upload a Build Artifact
-      uses: actions/upload-artifact@main
-      with:
-          name: ${{env.DATE}}
-          path: ./*
+
+          mkdir -p dl out
+          aria2c -s8 -x8 -d dl "$DL_URL"
+          tree dl
+
+    - name: Pack (split if >= 2GiB)
+      run: |
+          LIMIT=2147483648   # 2 GiB，Release 单文件必须小于此值
+          find dl -type f -print0 | while IFS= read -r -d '' f; do
+            name=$(basename "$f")
+            size=$(stat -c%s "$f")
+            if [ "$size" -lt "$LIMIT" ]; then
+              echo "直接上传: $name ($size bytes)"
+              mv "$f" "out/$name"
+            else
+              echo "分卷压缩: $name ($size bytes)"
+              # -0 仅存储不压缩（速度快）；-s 1900m 每卷 1900MB，低于 2GiB
+              # 生成 name.z01, name.z02 ... 以及最后的 name.zip
+              zip -0 -s 1900m "out/$name.zip" "$f"
+              rm -f "$f"   # 及时释放磁盘空间
+            fi
+          done
+          ls -lh out
+
+    - name: Upload to Releases
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+          gh release create "${{ env.DATE }}" out/* \
+            --repo "${{ github.repository }}" \
+            --title "${{ env.DATE }}" \
+            --notes "来源: ${{ github.event.inputs.download }}
+
+          如有 .z01/.z02… 和 .zip 分卷，请全部下载放在同一目录，用 7-Zip 或 WinRAR 直接解压 .zip 即可；
+          Linux/macOS 可先执行: zip -s 0 文件名.zip --out merged.zip && unzip merged.zip"
