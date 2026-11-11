@@ -13,10 +13,10 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      DL_URL: ${{ github.event.inputs.download }}
     steps:
     - name: download
-      env:
-        DL_URL: ${{ github.event.inputs.download }}
       run: |
           export DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
           echo "DATE=$DATE" >> $GITHUB_ENV
@@ -51,9 +51,15 @@ jobs:
       env:
         GH_TOKEN: ${{ github.token }}
       run: |
-          gh release create "${{ env.DATE }}" out/* \
-            --repo "${{ github.repository }}" \
-            --title "${{ env.DATE }}" \
-            --notes "来源: ${{ github.event.inputs.download }}
+          # 说明文字写入文件，避免链接或引号破坏 shell 语法
+          {
+            echo "来源: $DL_URL"
+            echo
+            echo "如有 .z01/.z02… 和 .zip 分卷，请全部下载放在同一目录，用 7-Zip 或 WinRAR 直接解压 .zip 即可。"
+            echo "Linux/macOS 可先执行: zip -s 0 文件名.zip --out merged.zip && unzip merged.zip"
+          } > notes.md
 
-   
+          gh release create "$DATE" out/* \
+            --repo "${{ github.repository }}" \
+            --title "$DATE" \
+            --notes-file notes.md
