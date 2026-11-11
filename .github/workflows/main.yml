@@ -56,5 +56,4 @@ jobs:
             --title "${{ env.DATE }}" \
             --notes "来源: ${{ github.event.inputs.download }}
 
-          如有 .z01/.z02… 和 .zip 分卷，请全部下载放在同一目录，用 7-Zip 或 WinRAR 直接解压 .zip 即可；
-          Linux/macOS 可先执行: zip -s 0 文件名.zip --out merged.zip && unzip merged.zip"
+   
