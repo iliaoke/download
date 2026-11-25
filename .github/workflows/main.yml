@@ -4,8 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       download:
-        description: '下载链接（aria2c 支持的链接/磁力等）'
+        description: '下载链接（aria2c 支持的 HTTP/FTP/磁力等链接）'
         required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,52 +15,166 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      DL_URL: ${{ github.event.inputs.download }}
-    steps:
-    - name: download
-      run: |
-          export DATE=$(TZ=UTC-8 date +"%y.%m.%d_%H.%M.%S")
-          echo "DATE=$DATE" >> $GITHUB_ENV
+      DL_URL: ${{ inputs.download }}
 
-          sudo apt-get update && sudo apt-get install -y tree zip unzip curl aria2 tar bzip2
-          curl --max-time 2 -s https://ipinfo.io/ip || curl --max-time 2 -s https://ifconfig.io/ip
+    steps:
+      - name: Prepare
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          DATE="$(date -u +"%y.%m.%d_%H.%M.%S")"
+          echo "DATE=$DATE" >> "$GITHUB_ENV"
+
+          sudo apt-get update
+          sudo apt-get install -y aria2 zip unzip tree
 
           mkdir -p dl out
-          aria2c -s8 -x8 -d dl "$DL_URL"
+
+      - name: Download
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ -z "${DL_URL:-}" ]]; then
+            echo "::error::没有提供下载链接"
+            exit 1
+          fi
+
+          aria2c \
+            --split=8 \
+            --max-connection-per-server=8 \
+            --continue=true \
+            --allow-overwrite=true \
+            --auto-file-renaming=false \
+            --dir=dl \
+            "$DL_URL"
+
+          echo "下载目录内容："
           tree dl
 
-    - name: Pack (split if >= 2GiB)
-      run: |
-          LIMIT=2147483648   # 2 GiB，Release 单文件必须小于此值
-          find dl -type f -print0 | while IFS= read -r -d '' f; do
-            name=$(basename "$f")
-            size=$(stat -c%s "$f")
-            if [ "$size" -lt "$LIMIT" ]; then
-              echo "直接上传: $name ($size bytes)"
-              mv "$f" "out/$name"
-            else
-              echo "分卷压缩: $name ($size bytes)"
-              # -0 仅存储不压缩（速度快）；-s 1900m 每卷 1900MB，低于 2GiB
-              # 生成 name.z01, name.z02 ... 以及最后的 name.zip
-              zip -0 -s 1900m "out/$name.zip" "$f"
-              rm -f "$f"   # 及时释放磁盘空间
-            fi
-          done
-          ls -lh out
+          if ! find dl -type f -print -quit | grep -q .; then
+            echo "::error::下载完成后 dl 目录中没有找到文件"
+            exit 1
+          fi
 
-    - name: Upload to Releases
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-          # 说明文字写入文件，避免链接或引号破坏 shell 语法
+      - name: Pack (split files at 2 GiB)
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          LIMIT=2147483648
+          VOLUME_SIZE=1900m
+          mkdir -p out
+
+          count=0
+
+          # 处理文件名冲突：清理特殊字符后若重名，则自动追加序号。
+          unique_path() {
+            local dir="$1"
+            local filename="$2"
+            local stem ext candidate n
+
+            if [[ "$filename" == *.* && "$filename" != .* ]]; then
+              stem="${filename%.*}"
+              ext=".${filename##*.}"
+            else
+              stem="$filename"
+              ext=""
+            fi
+
+            candidate="$dir/$filename"
+            n=2
+
+            while [[ -e "$candidate" ]]; do
+              candidate="$dir/${stem}_${n}${ext}"
+              n=$((n + 1))
+            done
+
+            printf '%s\n' "$candidate"
+          }
+
+          while IFS= read -r -d '' file; do
+            count=$((count + 1))
+
+            original_name="$(basename "$file")"
+            safe_name="$(printf '%s' "$original_name" | sed 's/[^a-zA-Z0-9._-]/_/g')"
+
+            if [[ -z "$safe_name" || "$safe_name" == "." || "$safe_name" == ".." ]]; then
+              safe_name="download_$count"
+            fi
+
+            size="$(stat -c%s "$file")"
+
+            if (( size < LIMIT )); then
+              target="$(unique_path out "$safe_name")"
+              echo "直接上传：$(basename "$target")（$size bytes）"
+              mv -- "$file" "$target"
+            else
+              # 若原文件本身就是 .zip，则直接以该名称作为分卷 ZIP；
+              # 否则在原文件名后追加 .zip。
+              if [[ "$safe_name" == *.zip ]]; then
+                archive_name="$safe_name"
+              else
+                archive_name="${safe_name}.zip"
+              fi
+
+              target="$(unique_path out "$archive_name")"
+              echo "分卷打包：$(basename "$target")（$size bytes）"
+
+              # -0：仅存储，不压缩；-s：每卷 1900 MiB。
+              # 生成 .z01/.z02/... 以及最后一个 .zip 文件。
+              zip -0 -s "$VOLUME_SIZE" -j "$target" "$file"
+
+              rm -f -- "$file"
+            fi
+          done < <(find dl -type f -print0)
+
+          if (( count == 0 )); then
+            echo "::error::dl 目录中没有可打包的文件"
+            exit 1
+          fi
+
+          echo "打包结果："
+          find out -maxdepth 1 -type f -printf '%f (%s bytes)\n' | sort
+
+          if ! find out -maxdepth 1 -type f -print -quit | grep -q .; then
+            echo "::error::out 目录中没有生成任何文件"
+            exit 1
+          fi
+
+      - name: Upload to GitHub Releases
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
           {
-            echo "来源: $DL_URL"
+            echo "来源：$DL_URL"
             echo
-            echo "如有 .z01/.z02… 和 .zip 分卷，请全部下载放在同一目录，用 7-Zip 或 WinRAR 直接解压 .zip 即可。"
-            echo "Linux/macOS 可先执行: zip -s 0 文件名.zip --out merged.zip && unzip merged.zip"
+            echo "如果附件包含 .z01、.z02 等分卷，请将所有分卷下载到同一目录。"
+            echo "使用 7-Zip 或 WinRAR 打开最后一个 .zip 文件进行解压。"
+            echo
+            echo "Linux/macOS 合并分卷示例："
+            echo "zip -s 0 文件名.zip --out merged.zip"
+            echo "unzip merged.zip"
           } > notes.md
 
-          gh release create "$DATE" out/* \
-            --repo "${{ github.repository }}" \
+          # 使用 Bash 数组传递附件，避免空格、括号等字符造成参数拆分。
+          # Pack 步骤已将方括号等特殊字符替换为下划线。
+          shopt -s nullglob
+          assets=(out/*)
+
+          if (( ${#assets[@]} == 0 )); then
+            echo "::error::out 目录没有可上传的文件"
+            exit 1
+          fi
+
+          echo "即将上传以下附件："
+          printf ' - %s\n' "${assets[@]}"
+
+          gh release create "$DATE" "${assets[@]}" \
+            --repo "${GITHUB_REPOSITORY}" \
             --title "$DATE" \
             --notes-file notes.md
