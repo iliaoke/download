@@ -4,8 +4,18 @@ on:
   workflow_dispatch:
     inputs:
       download:
-        description: '下载链接（aria2c 支持的 HTTP/FTP/磁力等链接）'
+        description: '下载链接（aria2c 支持的 HTTP/HTTPS/FTP/磁力/种子等链接）'
         required: true
+        type: string
+      filename:
+        description: '自定义保存文件名（可选，仅对单文件直链生效，留空则自动识别）'
+        required: false
+        default: ''
+        type: string
+      title:
+        description: '自定义 Release 标题（可选，留空则默认使用 UTC 时间戳）'
+        required: false
+        default: ''
         type: string
 
 permissions:
@@ -14,8 +24,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 180
     env:
       DL_URL: ${{ inputs.download }}
+      CUSTOM_FILENAME: ${{ inputs.filename }}
+      CUSTOM_TITLE: ${{ inputs.title }}
 
     steps:
       - name: Prepare
@@ -25,6 +38,13 @@ jobs:
 
           DATE="$(date -u +"%y.%m.%d_%H.%M.%S")"
           echo "DATE=$DATE" >> "$GITHUB_ENV"
+
+          if [[ -n "${CUSTOM_TITLE:-}" ]]; then
+            RELEASE_TITLE="$CUSTOM_TITLE"
+          else
+            RELEASE_TITLE="$DATE"
+          fi
+          echo "RELEASE_TITLE=$RELEASE_TITLE" >> "$GITHUB_ENV"
 
           sudo apt-get update
           sudo apt-get install -y aria2 zip unzip tree
@@ -41,14 +61,26 @@ jobs:
             exit 1
           fi
 
-          aria2c \
-            --split=8 \
-            --max-connection-per-server=8 \
-            --continue=true \
-            --allow-overwrite=true \
-            --auto-file-renaming=false \
-            --dir=dl \
-            "$DL_URL"
+          aria2_args=(
+            --split=8
+            --max-connection-per-server=8
+            --continue=true
+            --allow-overwrite=true
+            --auto-file-renaming=false
+            --max-tries=5
+            --retry-wait=3
+            --connect-timeout=30
+            --timeout=60
+            --seed-time=0
+            --bt-stop-timeout=300
+            --dir=dl
+          )
+
+          if [[ -n "${CUSTOM_FILENAME:-}" ]]; then
+            aria2_args+=(--out="$CUSTOM_FILENAME")
+          fi
+
+          aria2c "${aria2_args[@]}" "$DL_URL"
 
           echo "下载目录内容："
           tree dl
@@ -150,17 +182,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          {
-            echo "来源：$DL_URL"
-            echo
-            echo "如果附件包含 .z01、.z02 等分卷，请将所有分卷下载到同一目录。"
-            echo "使用 7-Zip 或 WinRAR 打开最后一个 .zip 文件进行解压。"
-            echo
-            echo "Linux/macOS 合并分卷示例："
-            echo "zip -s 0 文件名.zip --out merged.zip"
-            echo "unzip merged.zip"
-          } > notes.md
-
           # 使用 Bash 数组传递附件，避免空格、括号等字符造成参数拆分。
           # Pack 步骤已将方括号等特殊字符替换为下划线。
           shopt -s nullglob
@@ -171,10 +192,46 @@ jobs:
             exit 1
           fi
 
+          {
+            echo "## 下载信息"
+            echo
+            echo "- **来源**：\`$DL_URL\`"
+            echo "- **时间（UTC）**：\`$DATE\`"
+            echo
+            echo "## 文件清单与 SHA256 校验"
+            echo
+            echo "| 文件名 | 大小 | SHA256 |"
+            echo "| --- | --- | --- |"
+            for asset in "${assets[@]}"; do
+              name="$(basename "$asset")"
+              human_size="$(numfmt --to=iec-i --suffix=B "$(stat -c%s "$asset")")"
+              sha="$(sha256sum "$asset" | awk '{print $1}')"
+              echo "| \`$name\` | $human_size | \`$sha\` |"
+            done
+            echo
+            echo "## 分卷解压说明"
+            echo
+            echo "如果附件包含 \`.z01\`、\`.z02\` 等分卷，请将**所有分卷**下载到同一目录："
+            echo
+            echo "- **Windows**：使用 **7-Zip** 或 **WinRAR** 打开最后一个 \`.zip\` 文件进行解压。"
+            echo "- **Linux / macOS**："
+            echo '```bash'
+            echo 'zip -s 0 文件名.zip --out merged.zip'
+            echo 'unzip merged.zip'
+            echo '```'
+          } > notes.md
+
           echo "即将上传以下附件："
           printf ' - %s\n' "${assets[@]}"
 
-          gh release create "$DATE" "${assets[@]}" \
+          release_url="$(gh release create "$DATE" "${assets[@]}" \
             --repo "${GITHUB_REPOSITORY}" \
-            --title "$DATE" \
-            --notes-file notes.md
+            --title "$RELEASE_TITLE" \
+            --notes-file notes.md)"
+
+          {
+            echo "### 下载与发布完成"
+            echo
+            echo "- **Release 链接**：$release_url"
+            echo "- **文件数量**：${#assets[@]}"
+          } >> "$GITHUB_STEP_SUMMARY"
